@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"net"
+
+	"github.com/tangerinefrog/http_from_scratch/internal/request"
 )
 
 type Server struct {
@@ -48,5 +51,23 @@ func (s *Server) listen() {
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 
+	r, err := request.RequestFromReader(conn)
+	if err != nil {
+		log.Printf("Error while parsing request: %v", err)
+		return
+	}
+
+	print(r)
+
 	conn.Write([]byte("pong"))
+}
+
+func print(r *request.Request) {
+	fmt.Printf("Got new HTTP request:\n\n   - Version: %s\n   - Method: %s\n   - Target: %s", r.RequestLine.HttpVersion, r.RequestLine.Method, r.RequestLine.RequestTarget)
+	if len(r.Headers) > 0 {
+		fmt.Printf("\n\nHeaders:\n\n")
+		for k, v := range r.Headers {
+			fmt.Printf("   %s:%s\n", k, v)
+		}
+	}
 }
