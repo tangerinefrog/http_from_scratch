@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/tangerinefrog/http_from_scratch/internal/handlers"
 	"github.com/tangerinefrog/http_from_scratch/internal/server"
 )
 
@@ -19,8 +20,16 @@ func main() {
 	defer server.Close()
 	log.Printf("Server started on '%s'...", addr)
 
+	setupHandlers(server)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 	log.Println("Server stopped")
+}
+
+func setupHandlers(s *server.Server) {
+	s.Get("/", handlers.TestGoodHandler)
+	s.Get("/yourproblem", handlers.TestYourProblemHandler)
+	s.Get("/myproblem", handlers.TestMyProblemHandler)
 }

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"net"
 
@@ -11,7 +10,18 @@ import (
 
 type Server struct {
 	listener net.Listener
+	state    serverState
+	handlers map[string]Handler
 }
+
+type serverState string
+
+const (
+	serverStateRunning  serverState = "running"
+	serverStateStopping serverState = "stopping"
+)
+
+type Handler func(w *response.Writer, r *request.Request)
 
 func Serve(addr string) (*Server, error) {
 	listener, err := net.Listen("tcp", addr)
@@ -21,6 +31,7 @@ func Serve(addr string) (*Server, error) {
 
 	s := &Server{
 		listener: listener,
+		handlers: make(map[string]Handler),
 	}
 
 	go s.listen()
@@ -29,6 +40,7 @@ func Serve(addr string) (*Server, error) {
 }
 
 func (s *Server) Close() error {
+	s.state = serverStateStopping
 	err := s.listener.Close()
 	if err != nil {
 		return err
@@ -37,11 +49,29 @@ func (s *Server) Close() error {
 	return nil
 }
 
-func (s *Server) listen() {
+func (s *Server) Get(path string, h Handler) {
+	s.handlers["GET"+path] = h
+}
 
-	for {
+func (s *Server) Post(path string, h Handler) {
+	s.handlers["POST"+path] = h
+}
+
+func (s *Server) getHandler(path, method string) (Handler, bool) {
+	h, ok := s.handlers[method+path]
+	return h, ok
+}
+
+func (s *Server) listen() {
+	s.state = serverStateRunning
+
+	for s.state == serverStateRunning {
 		conn, err := s.listener.Accept()
 		if err != nil {
+			if s.state == serverStateStopping {
+				return
+			}
+
 			log.Printf("error opening a TCP connection: %v\n", err)
 			continue
 		}
@@ -55,20 +85,15 @@ func (s *Server) handle(conn net.Conn) {
 
 	r, err := request.RequestFromReader(conn)
 	if err != nil {
-		log.Printf("Error while parsing request: %v", err)
+		writer.WriteHeaders(response.StatusBadRequest)
 		return
 	}
-	print(r)
 
-	writer.Write([]byte("pong"))
-}
-
-func print(r *request.Request) {
-	fmt.Printf("Got new HTTP request:\n\n   - Version: %s\n   - Method: %s\n   - Target: %s", r.RequestLine.HttpVersion, r.RequestLine.Method, r.RequestLine.RequestTarget)
-	if len(r.Headers) > 0 {
-		fmt.Printf("\n\nHeaders:\n\n")
-		for k, v := range r.Headers {
-			fmt.Printf("   %s:%s\n", k, v)
-		}
+	h, ok := s.getHandler(r.RequestLine.RequestTarget, r.RequestLine.Method)
+	if !ok {
+		writer.WriteHeaders(response.StatusNotFound)
+		return
 	}
+
+	h(writer, r)
 }
