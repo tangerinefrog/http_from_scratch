@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/tangerinefrog/http_from_scratch/internal/headers"
 )
@@ -12,7 +13,9 @@ import (
 type Request struct {
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	state       RequestState
+	contentLen  int
 }
 
 type RequestLine struct {
@@ -25,11 +28,13 @@ type RequestState string
 
 var StateInit RequestState = "init"
 var StateHeaders RequestState = "headers"
+var StateBody RequestState = "body"
 var StateDone RequestState = "done"
 
-var ErrMalformedRequest = errors.New("malformed request")
-
 var sep = []byte("\r\n")
+
+var ErrMalformedRequest = errors.New("malformed request")
+var ErrBodyTooLong = errors.New("request body is greater than Content-Length")
 
 func newRequest() *Request {
 	return &Request{
@@ -112,8 +117,25 @@ outer:
 			read += n
 
 			if done {
+				getContentLen(r)
+				if r.contentLen > 0 {
+					r.Body = make([]byte, 0, r.contentLen)
+					r.state = StateBody
+				} else {
+					r.state = StateDone
+				}
+			}
+
+		case StateBody:
+			remaining := min(r.contentLen-len(r.Body), len(data[read:]))
+			r.Body = append(r.Body, data[read:remaining+read]...)
+			read += remaining
+			if len(r.Body) > r.contentLen {
+				return 0, ErrBodyTooLong
+			} else if len(r.Body) == r.contentLen {
 				r.state = StateDone
 			}
+			break outer
 
 		case StateDone:
 			break outer
@@ -178,4 +200,18 @@ func parseHttpVersion(s []byte) ([]byte, error) {
 	}
 
 	return parts[1], nil
+}
+
+func getContentLen(r *Request) {
+	lenStr := r.Headers.Get("content-length")
+	if lenStr == "" {
+		return
+	}
+
+	length, err := strconv.Atoi(lenStr)
+	if err != nil || length <= 0 {
+		return
+	}
+
+	r.contentLen = length
 }

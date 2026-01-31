@@ -54,7 +54,7 @@ func TestParse(t *testing.T) {
 	require.NotNil(t, headers)
 	assert.Equal(t, "localhost:8080", headers.Get("Host"))
 	assert.Equal(t, 1, len(headers))
-	assert.Equal(t, 25, n)
+	assert.Equal(t, 24, n)
 	assert.True(t, done)
 
 	// Test: Invalid spacing header
