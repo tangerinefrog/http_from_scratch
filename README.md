@@ -20,6 +20,3 @@ Implements core HTTP server functionality using only TCP sockets:
 - Request/response helpers beyond basics
 
 This is a learning project, not production-ready.
-
-## Usage
-```go
