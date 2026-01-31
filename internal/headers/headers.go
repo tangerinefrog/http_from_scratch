@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"strings"
+	"unicode"
 )
 
 type Headers map[string]string
@@ -77,6 +78,23 @@ func (h *Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 
 	return read, false, nil
+}
+
+func CapitalizeName(header string) string {
+	if len(header) == 0 {
+		return ""
+	}
+
+	runes := []rune(header)
+	for i := 0; i < len(runes); i++ {
+		if i == 0 {
+			runes[i] = unicode.ToUpper(runes[i])
+		} else if runes[i] == '-' && i+1 < len(runes) {
+			i++
+			runes[i] = unicode.ToUpper(runes[i])
+		}
+	}
+	return string(runes)
 }
 
 func parseFieldLine(fieldLine []byte) (string, string, error) {

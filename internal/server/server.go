@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/tangerinefrog/http_from_scratch/internal/request"
+	"github.com/tangerinefrog/http_from_scratch/internal/response"
 )
 
 type Server struct {
@@ -50,16 +51,16 @@ func (s *Server) listen() {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
+	writer := response.NewWriter(conn)
 
 	r, err := request.RequestFromReader(conn)
 	if err != nil {
 		log.Printf("Error while parsing request: %v", err)
 		return
 	}
-
 	print(r)
 
-	conn.Write([]byte("pong"))
+	writer.Write([]byte("pong"))
 }
 
 func print(r *request.Request) {
